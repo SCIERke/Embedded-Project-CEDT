@@ -19,7 +19,7 @@
 static float accelLsbPerG  = 16384.0f;
 static float gyroLsbPerDps = 131.0f;
 static float axOff = 0, ayOff = 0, azOff = 0;
-static float gxOff = 0, gyOff = 0, gzOff = 0;
+float gxOff = 0, gyOff = 0, gzOff = 0;
 
 // Returns true if the MPU ACKed the write (endTransmission == 0).
 bool mpuWriteReg(uint8_t reg, uint8_t val) {
@@ -29,13 +29,19 @@ bool mpuWriteReg(uint8_t reg, uint8_t val) {
   return Wire.endTransmission(true) == 0;
 }
 
-// Returns the register value, or 0xFF if the MPU did not answer.
-uint8_t mpuReadReg(uint8_t reg) {
+static bool mpuReadRegs(uint8_t reg, uint8_t *buf, uint8_t n) {
   Wire.beginTransmission(MPU_ADDR);
   Wire.write(reg);
-  if (Wire.endTransmission(false) != 0) return 0xFF;   // repeated start
-  if (Wire.requestFrom((uint8_t)MPU_ADDR, (uint8_t)1) != 1) return 0xFF;
-  return Wire.read();
+  if (Wire.endTransmission(false) != 0) return false;   // repeated start
+  if (Wire.requestFrom((uint8_t)MPU_ADDR, n) != n) return false;
+  for (uint8_t i = 0; i < n; i++) buf[i] = Wire.read();
+  return true;
+}
+
+// Returns the register value, or 0xFF if the MPU did not answer.
+uint8_t mpuReadReg(uint8_t reg) {
+  uint8_t v;
+  return mpuReadRegs(reg, &v, 1) ? v : 0xFF;
 }
 
 // ------ Reading ------
@@ -66,7 +72,7 @@ bool mpuRead(ImuData &d) {
 }
 
 // ---------------- Calibration (keep still & flat) ----------------
-void mpuCalibrate(uint16_t samples = 500) {
+void mpuCalibrate(uint16_t samples) {
   axOff = ayOff = azOff = gxOff = gyOff = gzOff = 0;
   double sax = 0, say = 0, saz = 0, sgx = 0, sgy = 0, sgz = 0;
   ImuData d;
@@ -85,7 +91,7 @@ void mpuCalibrate(uint16_t samples = 500) {
 }
 
 // ---------------- Complementary filter ----------------
-void updateAngles(Angles &a, const ImuData &d, float dt, float alpha = 0.98f) {
+void updateAngles(Angles &a, const ImuData &d, float dt, float alpha) {
   float accRoll  = atan2f(d.ay, d.az) * RAD_TO_DEG;
   float accPitch = atan2f(-d.ax, sqrtf(d.ay * d.ay + d.az * d.az)) * RAD_TO_DEG;
   a.roll  = alpha * (a.roll  + d.gx * dt) + (1 - alpha) * accRoll;

@@ -11,7 +11,11 @@ struct Angles  { float roll, pitch, yaw; };
 bool mpuWriteReg(uint8_t reg, uint8_t val);
 uint8_t mpuReadReg(uint8_t reg);   // returns 0xFF if the read failed
 bool mpuBegin(AccelRange aRange = ACCEL_2G, GyroRange gRange = GYRO_250);
-
+bool mpuRead(ImuData &d);
+bool mpuReadRaw(ImuRaw &r);
+void mpuCalibrate(uint16_t samples = 500);
+void updateAngles(Angles &a, const ImuData &d, float dt, float alpha = 0.98f);
+extern float gxOff, gyOff, gzOff;
 
 // ---------------- Example ----------------
 // Angles angles = {0, 0, 0};
