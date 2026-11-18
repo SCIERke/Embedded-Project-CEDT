@@ -23,8 +23,8 @@ float iRoll, iPitch, iYaw;   // integral term per axis
 Angles angles = {0, 0, 0};
 uint32_t lastMicros;
 
-void pid(float &i, const Axis &ax, float angle, float rate, float dt) {
-  float err = 0.0f - angle;
+void pid(float target, dafloat &i, const Axis &ax, float angle, float rate, float dt) {
+  float err = target - angle; // Need to change to target
   i = constrain(i + Ki * err * dt, -I_MAX, I_MAX);
   float u = constrain(Kp * err + i - Kd * rate, -OUT_MAX, OUT_MAX);
   servoWrite(ax.ch, 90.0f + ax.trim + ax.dir * u);
@@ -94,9 +94,9 @@ void loop() {
 
   updateAngles(angles, d, dt);
 
-  pid(iRoll,   axRoll,  angles.roll,  d.gx, dt);
-  pid(iPitch, axPitch, angles.pitch, d.gy, dt);
-  pid(iYaw,     axYaw,   angles.yaw,   d.gz, dt);
+  pid(0, iRoll,   axRoll,  angles.roll,  d.gx, dt);
+  pid(0, iPitch, axPitch, angles.pitch, d.gy, dt);
+  pid(0, iYaw,     axYaw,   angles.yaw,   d.gz, dt);
 
   static uint32_t lastPrint = 0;
   if (millis() - lastPrint > 50) {
