@@ -32,6 +32,19 @@ services:
       NAVY_AGENT_MODEL: ${NAVY_AGENT_MODEL:-}
       NAVY_AGENT_API_KEY: ${NAVY_AGENT_API_KEY:-}
 
+  # opt-in: docker compose --profile tracker up --build
+  tracker:
+    build: ./tracker
+    profiles: [tracker]
+    restart: unless-stopped
+    depends_on: [mqtt-broker]
+    environment:
+      SOURCE: ${TRACKER_SOURCE:?set TRACKER_SOURCE in .env (OV7670 stream URL, e.g. http://<esp32-ip>:81/stream)}
+      MQTT_HOST: mqtt-broker
+      MQTT_TOPIC: ${TRACKER_MQTT_TOPIC:-gimbal/target}
+    # Linux + local USB webcam: set TRACKER_SOURCE=/dev/video0 and uncomment
+    # devices: ["/dev/video0:/dev/video0"]
+
   mqtt-broker:
     image: eclipse-mosquitto:2
     restart: unless-stopped

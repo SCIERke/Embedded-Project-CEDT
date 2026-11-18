@@ -4,10 +4,17 @@ ZONE    ?= asia-southeast1-a
 TF      := terraform -chdir=infra/terraform/dev
 TFVARS  := -var project_id=$(PROJECT) -var zone=$(ZONE)
 
-.PHONY: check-env tf-plan tf-apply tf-destroy firmware-secrets gimbal
+.PHONY: check-env tf-plan tf-apply tf-destroy firmware-secrets gimbal tracker-dev
 
 # ---- Development Commands ----
 dev:
+
+# Tracker dev mode: laptop webcam, runs on the host (Docker on macOS can't reach the camera).
+# Starts the MQTT broker, then tracks and publishes to it. make tracker-dev SOURCE=1 for another camera, or a video file.
+SOURCE ?= 0
+tracker-dev:
+	docker compose up -d mqtt-broker
+	cd tracker && SOURCE=$(SOURCE) MQTT_HOST=localhost uv run track.py
 
 
 # ---- Production Commands ----

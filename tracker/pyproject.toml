@@ -1,0 +1,9 @@
+[project]
+name = "tracker"
+version = "0.1.0"
+description = "Body tracker dependencies"
+requires-python = ">=3.13"
+dependencies = [
+    "paho-mqtt>=2.2.0",
+    "ultralytics>=8.4.215",
+]

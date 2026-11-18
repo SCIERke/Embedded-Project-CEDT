@@ -3,9 +3,12 @@
 #include "src/mpu.h"
 #include "src/motor.h"
 #include <proj_wifi.h>
+#include <proj_mqtt.h>
+#include <proj_utils.h>
 
 #define SERIAL_BAUDRATE 115200
 #define WIRE_CLOCK 400000
+#define TARGET_TOPIC "gimbal/target"
 
 // ---- Tuning knobs ----
 // PCA9685 channel per axis, mechanical direction (+1/-1), servo trim (deg, level = 90 + trim)
@@ -20,10 +23,31 @@ const float OUT_MAX = 60.0f;  // servo swing limit around centre (deg)
 
 float iRoll, iPitch, iYaw;   // integral term per axis
 
+// ---- Person tracking ----
+const float HFOV = 60.0f, VFOV = 45.0f;
+
+const float TRACK_SIGN_YAW = +1, TRACK_SIGN_PITCH = +1;
+const float TARGET_MAX = 45.0f;
+
+float yawTarget, pitchTarget;
+
 Angles angles = {0, 0, 0};
 uint32_t lastMicros;
 
-void pid(float target, dafloat &i, const Axis &ax, float angle, float rate, float dt) {
+void onTarget(const char *topic, const uint8_t *payload, unsigned int len) {
+  char buf[96];
+  len = min(len, (unsigned int)sizeof(buf) - 1);
+  memcpy(buf, payload, len);
+  buf[len] = 0;
+
+  float ex, ey;
+  if (!jsonNum(buf, "\"ex\"", ex) || !jsonNum(buf, "\"ey\"", ey)) return;
+
+  yawTarget   = constrain(angles.yaw   + TRACK_SIGN_YAW   * ex * HFOV / 2, -TARGET_MAX, TARGET_MAX);
+  pitchTarget = constrain(angles.pitch + TRACK_SIGN_PITCH * ey * VFOV / 2, -TARGET_MAX, TARGET_MAX);
+}
+
+void pid(float target, float &i, const Axis &ax, float angle, float rate, float dt) {
   float err = target - angle; // Need to change to target
   i = constrain(i + Ki * err * dt, -I_MAX, I_MAX);
   float u = constrain(Kp * err + i - Kd * rate, -OUT_MAX, OUT_MAX);
@@ -37,6 +61,7 @@ void handleSerial() {
   if (c == 'r') {
     angles = {0, 0, 0};
     iRoll = iPitch = iYaw = 0;
+    yawTarget = pitchTarget = 0;
     return;
   }
 
@@ -72,6 +97,8 @@ void setup() {
 
   Serial.println("Connecting to wifi...");
   wifiBegin();   // result ignored on purpose: wifiLoop() retries, balancing doesn't need wifi
+  mqttBegin("gimbal", onTarget);
+  mqttSubscribe(TARGET_TOPIC);
 
   lastMicros = micros();
 }
@@ -79,6 +106,7 @@ void setup() {
 void loop() {
   handleSerial();
   wifiLoop();
+  mqttLoop();
 
   ImuData d;
   if (!mpuRead(d)) {
@@ -95,8 +123,8 @@ void loop() {
   updateAngles(angles, d, dt);
 
   pid(0, iRoll,   axRoll,  angles.roll,  d.gx, dt);
-  pid(0, iPitch, axPitch, angles.pitch, d.gy, dt);
-  pid(0, iYaw,     axYaw,   angles.yaw,   d.gz, dt);
+  pid(pitchTarget, iPitch, axPitch, angles.pitch, d.gy, dt);
+  pid(yawTarget,   iYaw,   axYaw,   angles.yaw,   d.gz, dt);
 
   static uint32_t lastPrint = 0;
   if (millis() - lastPrint > 50) {
