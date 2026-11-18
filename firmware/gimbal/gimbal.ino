@@ -2,6 +2,7 @@
 #include <Adafruit_PWMServoDriver.h>
 #include "mpu.h"
 #include "motor.h"
+#include <proj_wifi.h>
 
 #define SERIAL_BAUDRATE 115200
 #define WIRE_CLOCK 400000
@@ -32,9 +33,18 @@ void pid(float &i, const Axis &ax, float angle, float rate, float dt) {
 void handleSerial() {
   if (!Serial.available()) return;
   char c = Serial.read();
-  if (c == 'r') { angles = {0, 0, 0}; iRoll = iPitch = iYaw = 0; return; }
+
+  if (c == 'r') {
+    angles = {0, 0, 0};
+    iRoll = iPitch = iYaw = 0;
+    return;
+  }
+
+  if (c != 'p' && c != 'i' && c != 'd') return;   // skips '\n': parseFloat would block 1 s waiting for a number
   float v = Serial.parseFloat();
-  if (c == 'p') Kp = v; else if (c == 'i') Ki = v; else if (c == 'd') Kd = v; else return;
+
+  if (c == 'p') Kp = v; else if (c == 'i') Ki = v; else Kd = v;
+
   Serial.printf("Kp %.3f Ki %.3f Kd %.3f\n", Kp, Ki, Kd);
 }
 
@@ -43,10 +53,13 @@ void setup() {
   Wire.begin();
   Wire.setClock(WIRE_CLOCK);
 
+  Serial.println("Starting up MPU... keep it still");
   if (!mpuBegin(ACCEL_2G, GYRO_250)) {
     Serial.println("MPU6050 not found — check wiring");
     while (true) delay(1000);
   }
+
+  Serial.println("Starting up servo...");
   if (!servoBegin()) {
     Serial.println("PCA9685 not found — check wiring");
     while (true) delay(1000);
@@ -57,11 +70,15 @@ void setup() {
   mpuCalibrate();
   Serial.printf("Gyro offsets: %.3f %.3f %.3f\n", gxOff, gyOff, gzOff);
 
+  Serial.println("Connecting to wifi...");
+  wifiBegin();   // result ignored on purpose: wifiLoop() retries, balancing doesn't need wifi
+
   lastMicros = micros();
 }
 
 void loop() {
   handleSerial();
+  wifiLoop();
 
   ImuData d;
   if (!mpuRead(d)) {
