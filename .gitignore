@@ -1,0 +1,8 @@
+.env
+*.terraform/
+*.tfstate*
+*.tfvars
+
+influxdb3/
+
+firmware/common/src/secrets.h
