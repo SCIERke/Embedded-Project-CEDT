@@ -1,0 +1,54 @@
+services:
+  sensor-db:
+    image: influxdb:3-core
+    restart: unless-stopped
+    ports:
+      - 8181:8181
+    command:
+      - influxdb3
+      - serve
+      - --node-id=node0
+      - --object-store=file
+      - --data-dir=/var/lib/influxdb3/data
+      - --plugin-dir=/var/lib/influxdb3/plugins
+      - --without-auth # local dev only
+    volumes:
+      - ./influxdb3/core/data:/var/lib/influxdb3/data
+      - ./influxdb3/core/plugins:/var/lib/influxdb3/plugins
+
+  backend:
+    build: ./web/backend
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      SERVER_LISTEN: ":8000"
+      SERVER_DATABASE_URL: ${SERVER_DATABASE_URL:?set SERVER_DATABASE_URL in .env}
+      SERVER_LOG_LEVEL: ${SERVER_LOG_LEVEL:-info}
+      SERVER_ENVIRONMENT: ${SERVER_ENVIRONMENT:-dev}
+      SERVER_JWT_SECRET: ${SERVER_JWT_SECRET:-}
+      SERVER_ACCESS_TTL: ${SERVER_ACCESS_TTL:-15m}
+      SERVER_REFRESH_TTL: ${SERVER_REFRESH_TTL:-168h}
+      NAVY_AGENT_URL: ${NAVY_AGENT_URL:-}
+      NAVY_AGENT_MODEL: ${NAVY_AGENT_MODEL:-}
+      NAVY_AGENT_API_KEY: ${NAVY_AGENT_API_KEY:-}
+
+  # opt-in: docker compose --profile tracker up --build
+  tracker:
+    build: ./tracker
+    profiles: [tracker]
+    restart: unless-stopped
+    depends_on: [mqtt-broker]
+    environment:
+      SOURCE: ${TRACKER_SOURCE:?set TRACKER_SOURCE in .env (OV7670 stream URL, e.g. http://<esp32-ip>:81/stream)}
+      MQTT_HOST: mqtt-broker
+      MQTT_TOPIC: ${TRACKER_MQTT_TOPIC:-gimbal/target}
+    # Linux + local USB webcam: set TRACKER_SOURCE=/dev/video0 and uncomment
+    # devices: ["/dev/video0:/dev/video0"]
+
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - 1883:1883
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro

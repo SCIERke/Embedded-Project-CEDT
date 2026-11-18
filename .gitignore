@@ -1,0 +1,15 @@
+.env
+*.terraform/
+*.tfstate*
+*.tfvars
+
+influxdb3/
+
+firmware/common/src/secrets.h
+
+# tracker (python)
+__pycache__/
+.venv/
+venv/
+*.pt
+runs/
