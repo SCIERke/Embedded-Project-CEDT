@@ -1,7 +1,7 @@
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
-#include "mpu.h"
-#include "motor.h"
+#include "src/mpu.h"
+#include "src/motor.h"
 #include <proj_wifi.h>
 
 #define SERIAL_BAUDRATE 115200
